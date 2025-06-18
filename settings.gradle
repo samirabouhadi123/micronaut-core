@@ -17,7 +17,7 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = 'micronaut-parent'
-
+include "micronaut-development"
 include "aop"
 include "core-bom"
 include "buffer-netty"
