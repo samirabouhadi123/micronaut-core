@@ -26,21 +26,24 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 public final class ClassUtil {
 
     private static final Logger LOG = LoggerFactory.getLogger(ClassUtil.class);
-    private static final Path PROJECT_ROOT = Paths.get("").toAbsolutePath();
+    private static final Path PROJECT_ROOT = findProjectRoot();
 
     private static final List<String> SOURCE_DIRECTORIES = Arrays.asList(
-            "src/main/java/",
-            "src/test/java/"
+        "src/main/java/",
+        "src/test/java/"
     );
 
     private static final String COLOR_AT = "#718096";
     private static final String COLOR_CLASS = "#4A5568";
     private static final String COLOR_METHOD = "#5A67D8";
     private static final String COLOR_FILE_INFO = "#805AD5";
+
+
 
     public static String getStackTraceAsString(Throwable throwable) {
         StringWriter stringWriter = new StringWriter();
@@ -77,7 +80,7 @@ public final class ClassUtil {
             String methodName = methodInfo.substring(lastDot + 1);
 
             formattedLine.append("<span style=\"color: ").append(COLOR_CLASS).append(";\">").append(className).append("</span>")
-                    .append("<span style=\"color: ").append(COLOR_METHOD).append("; font-weight: 500;\">").append(methodName).append("</span>");
+                .append("<span style=\"color: ").append(COLOR_METHOD).append("; font-weight: 500;\">").append(methodName).append("</span>");
         } else {
             formattedLine.append(methodInfo);
         }
@@ -116,15 +119,57 @@ public final class ClassUtil {
         for (String classToCheck : classesToCheck) {
             String relativePath = classToCheck.replace('.', File.separatorChar) + ".java";
 
-            for (String sourceDir : SOURCE_DIRECTORIES) {
-                Path path = PROJECT_ROOT.resolve(sourceDir + relativePath);
-                if (Files.exists(path)) {
-                    return path;
+
+            for (Path module : getModules()) {
+                for (String sourceDir : SOURCE_DIRECTORIES) {
+                    Path path = module.resolve(sourceDir + relativePath);
+                    if (Files.exists(path)) {
+                        return path;
+                    }
                 }
             }
         }
 
         return null;
+    }
+
+    private static Path findProjectRoot() {
+        Path current = Paths.get("").toAbsolutePath();
+
+        while (current != null) {
+            if (Files.exists(current.resolve("pom.xml")) ||
+                Files.exists(current.resolve("build.gradle")) ||
+                Files.exists(current.resolve("settings.gradle"))) {
+                return current;
+            }
+            current = current.getParent();
+        }
+
+        return Paths.get("").toAbsolutePath();
+    }
+
+
+    private static List<Path> getModules() {
+        List<Path> modules = new ArrayList<>();
+        modules.add(PROJECT_ROOT);
+
+        try (Stream<Path> paths = Files.list(PROJECT_ROOT)) {
+            paths.filter(Files::isDirectory)
+                .filter(ClassUtil::isModule)
+                .forEach(modules::add);
+        } catch (Exception e) {
+            LOG.debug("Error discovering modules: {}", e.getMessage());
+        }
+
+        return modules;
+    }
+
+    private static boolean isModule(Path path) {
+
+        return Files.exists(path.resolve("pom.xml")) ||
+            Files.exists(path.resolve("build.gradle")) ||
+            Files.exists(path.resolve("src/main/java")) ||
+            Files.exists(path.resolve("src/test/java"));
     }
 
     private static List<String> getClassNamesToCheck(String className) {
@@ -196,13 +241,13 @@ public final class ClassUtil {
     private static void appendHtmlLine(StringBuilder snippet, String lineContent, int lineNumber, boolean isErrorLine) {
         String cssClass = isErrorLine ? "highlighted-line" : "code-line";
         snippet.append("<div class=\"")
-                .append(cssClass)
-                .append("\">")
-                .append("<span class=\"line-number\">")
-                .append(lineNumber)
-                .append("</span> ")
-                .append(lineContent)
-                .append("</div>");
+            .append(cssClass)
+            .append("\">")
+            .append("<span class=\"line-number\">")
+            .append(lineNumber)
+            .append("</span> ")
+            .append(lineContent)
+            .append("</div>");
     }
 
     public enum CodeSnippetFormat {
